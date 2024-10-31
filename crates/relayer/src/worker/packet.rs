@@ -81,7 +81,7 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
     cmd_rx: Receiver<WorkerCmd>,
     // Mutex is used to prevent race condition between the packet workers
     link: Arc<Mutex<Link<ChainA, ChainB>>>,
-    mut should_clear_on_start: bool,
+    should_clear_on_start: bool,
     clear_interval: u64,
     clear_limit: usize,
     path: Packet,
@@ -116,7 +116,7 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
             // (`NewBlock`) `cmd` that matches the clearing interval.
             handle_packet_cmd(
                 &mut link.lock().unwrap(),
-                &mut should_clear_on_start,
+                should_clear_on_start,
                 clear_interval,
                 clear_limit,
                 &path,
@@ -264,7 +264,7 @@ pub fn spawn_clear_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
 /// and executes any scheduled operational data that is ready.
 fn handle_packet_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
     link: &mut Link<ChainA, ChainB>,
-    should_clear_on_start: &mut bool,
+    should_clear_on_start: bool,
     clear_interval: u64,
     clear_limit: usize,
     path: &Packet,
@@ -284,7 +284,7 @@ fn handle_packet_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
             )
             .ok();
 
-            if *should_clear_on_start || next_sequence < lowest_sequence {
+            if should_clear_on_start || next_sequence < lowest_sequence {
                 handle_clear_packet(link, clear_interval, path, Some(batch.height), clear_limit)?;
             }
         }
