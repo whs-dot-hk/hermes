@@ -81,7 +81,6 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
     cmd_rx: Receiver<WorkerCmd>,
     // Mutex is used to prevent race condition between the packet workers
     link: Arc<Mutex<Link<ChainA, ChainB>>>,
-    should_clear_on_start: bool,
     clear_interval: u64,
     clear_limit: usize,
     path: Packet,
@@ -116,7 +115,6 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
             // (`NewBlock`) `cmd` that matches the clearing interval.
             handle_packet_cmd(
                 &mut link.lock().unwrap(),
-                should_clear_on_start,
                 clear_interval,
                 clear_limit,
                 &path,
@@ -188,7 +186,6 @@ pub fn spawn_clear_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
     cmd_rx: Receiver<WorkerCmd>,
     // Mutex is used to prevent race condition between the packet workers
     link: Arc<Mutex<Link<ChainA, ChainB>>>,
-    mut should_clear_on_start: bool,
     clear_interval: u64,
     clear_limit: usize,
     clear_cmd_tx: Sender<WorkerCmd>,
@@ -227,13 +224,7 @@ pub fn spawn_clear_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
             // If clearing fails after all these retries with ignorable error the task continues
             // (see `handle_link_error_in_task`) and clearing is retried with the next
             // (`NewBlock`) `cmd` that matches the clearing interval.
-            handle_clear_cmd(
-                &mut link.lock().unwrap(),
-                &mut should_clear_on_start,
-                clear_interval,
-                clear_limit,
-                cmd,
-            )?;
+            handle_clear_cmd(&mut link.lock().unwrap(), clear_interval, clear_limit, cmd)?;
 
             if is_new_batch {
                 idle_worker_timer = 0;
@@ -264,7 +255,6 @@ pub fn spawn_clear_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
 /// and executes any scheduled operational data that is ready.
 fn handle_packet_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
     link: &mut Link<ChainA, ChainB>,
-    should_clear_on_start: bool,
     clear_interval: u64,
     clear_limit: usize,
     path: &Packet,
@@ -284,7 +274,7 @@ fn handle_packet_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
             )
             .ok();
 
-            if should_clear_on_start || next_sequence < lowest_sequence {
+            if next_sequence < lowest_sequence {
                 handle_clear_packet(link, clear_interval, path, Some(batch.height), clear_limit)?;
             }
         }
@@ -299,14 +289,10 @@ fn handle_packet_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
     Ok(())
 }
 
-/// Given an `IbcEvent` command, schedule packet clearing if the
-/// `should_clear_on_start` flag has been toggled.
-///
 /// Given a `NewBlock` command, checks if packet clearing should occur
 /// and performs it if so.
 fn handle_clear_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
     link: &mut Link<ChainA, ChainB>,
-    should_clear_on_start: &mut bool,
     clear_interval: u64,
     clear_limit: usize,
     cmd: WorkerCmd,
@@ -320,18 +306,12 @@ fn handle_clear_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
             (false, None)
         }
 
-        WorkerCmd::IbcEvents { batch } => {
-            if *should_clear_on_start {
-                (true, Some(batch.height))
-            } else {
-                (false, None)
-            }
-        }
+        WorkerCmd::IbcEvents { batch: _ } => (false, None),
 
         // Handle the arrival of an event signaling that the
         // source chain has advanced to a new block
         WorkerCmd::NewBlock { height, .. } => {
-            if *should_clear_on_start || should_clear_packets(clear_interval, *height) {
+            if should_clear_packets(clear_interval, *height) {
                 (true, Some(*height))
             } else {
                 (false, None)
@@ -343,12 +323,6 @@ fn handle_clear_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
 
     if do_clear {
         info!("packets clearing triggered, looking for packets to clear");
-
-        // Reset the `clear_on_start` flag and attempt packet clearing once now.
-        // More clearing will be done at clear interval.
-        if *should_clear_on_start {
-            *should_clear_on_start = false;
-        }
 
         link.a_to_b
             .schedule_packet_clearing(maybe_height, clear_limit)

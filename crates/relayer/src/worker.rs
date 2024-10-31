@@ -1,6 +1,5 @@
 use alloc::sync::Arc;
 use core::fmt::{Display, Error as FmtError, Formatter};
-use ibc_relayer_types::core::ics04_channel::channel::Ordering;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tracing::error;
@@ -133,10 +132,6 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle, ChainB: ChainHandle>(
 
             match link_res {
                 Ok(link) => {
-                    let channel_ordering = link.a_to_b.channel().ordering;
-                    let should_clear_on_start =
-                        should_clear_on_start(&packets_config, channel_ordering);
-
                     let (cmd_tx, cmd_rx) = crossbeam_channel::unbounded();
                     let link = Arc::new(Mutex::new(link));
 
@@ -173,7 +168,6 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle, ChainB: ChainHandle>(
                     let clear_task = packet::spawn_clear_cmd_worker(
                         cmd_rx,
                         link.clone(),
-                        should_clear_on_start,
                         clear_interval,
                         config.mode.packets.clear_limit,
                         clear_cmd_tx,
@@ -191,7 +185,6 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle, ChainB: ChainHandle>(
                         None => packet::spawn_packet_cmd_worker(
                             clear_cmd_rx,
                             link.clone(),
-                            should_clear_on_start,
                             clear_interval,
                             config.mode.packets.clear_limit,
                             path.clone(),
@@ -243,12 +236,4 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle, ChainB: ChainHandle>(
     };
 
     WorkerHandle::new(id, object, data, cmd_tx, task_handles)
-}
-
-fn should_clear_on_start(config: &crate::config::Packets, channel_ordering: Ordering) -> bool {
-    if config.force_disable_clear_on_start {
-        false
-    } else {
-        config.clear_on_start || channel_ordering == Ordering::Ordered
-    }
 }
