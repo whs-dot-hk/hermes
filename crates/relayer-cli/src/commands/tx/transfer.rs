@@ -1,7 +1,6 @@
 use core::time::Duration;
 
 use abscissa_core::clap::Parser;
-use abscissa_core::{config::Override, FrameworkErrorKind};
 use eyre::eyre;
 
 use ibc_relayer::{
@@ -119,23 +118,6 @@ pub struct TxIcs20MsgTransferCmd {
         help = "Optional memo included in the transfer"
     )]
     memo: Option<String>,
-}
-
-impl Override<Config> for TxIcs20MsgTransferCmd {
-    fn override_config(&self, mut config: Config) -> Result<Config, abscissa_core::FrameworkError> {
-        let src_chain_config = config.find_chain_mut(&self.src_chain_id).ok_or_else(|| {
-            FrameworkErrorKind::ComponentError.context(format!(
-                "missing configuration for source chain '{}'",
-                self.src_chain_id
-            ))
-        })?;
-
-        if let Some(ref key_name) = self.key_name {
-            src_chain_config.set_key_name(key_name.to_string());
-        }
-
-        Ok(config)
-    }
 }
 
 impl TxIcs20MsgTransferCmd {

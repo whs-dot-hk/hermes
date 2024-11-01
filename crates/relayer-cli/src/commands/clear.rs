@@ -2,12 +2,10 @@ use eyre::eyre;
 use std::ops::RangeInclusive;
 
 use abscissa_core::clap::Parser;
-use abscissa_core::config::Override;
-use abscissa_core::{Command, FrameworkErrorKind, Runnable};
+use abscissa_core::{Command, Runnable};
 
 use ibc_relayer::chain::handle::{BaseChainHandle, ChainHandle};
 use ibc_relayer::chain::requests::{IncludeProof, QueryChannelRequest, QueryHeight};
-use ibc_relayer::config::Config;
 use ibc_relayer::link::error::LinkError;
 use ibc_relayer::link::{Link, LinkParameters};
 use ibc_relayer::util::seq_range::parse_seq_range;
@@ -88,28 +86,6 @@ pub struct ClearPacketsCmd {
         help = "Number of packets to fetch at once from the chain (default: `query_packets_chunk_size` config)"
     )]
     query_packets_chunk_size: Option<usize>,
-}
-
-impl Override<Config> for ClearPacketsCmd {
-    fn override_config(&self, mut config: Config) -> Result<Config, abscissa_core::FrameworkError> {
-        let chain_config = config.find_chain_mut(&self.chain_id).ok_or_else(|| {
-            FrameworkErrorKind::ComponentError.context(format!(
-                "missing configuration for chain '{}'",
-                self.chain_id
-            ))
-        })?;
-
-        if let Some(ref key_name) = self.key_name {
-            // Q: should the key name be required across chain types, meaning that
-            // key management is common to all chain types, or should key management
-            // be the responsibility of the backend? If key management is common
-            // across backends, how should it be agnostic to the key type? Can it
-            // just be an opaque byte string handled by the backend?
-            chain_config.set_key_name(key_name.to_string());
-        }
-
-        Ok(config)
-    }
 }
 
 impl Runnable for ClearPacketsCmd {

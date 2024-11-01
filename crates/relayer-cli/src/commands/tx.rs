@@ -1,7 +1,6 @@
 //! `tx` subcommand
 use abscissa_core::clap::Parser;
-use abscissa_core::{config::Override, Command, Runnable};
-use ibc_relayer::config::Config;
+use abscissa_core::{Command, Runnable};
 
 mod channel;
 pub(crate) mod client;
@@ -73,13 +72,4 @@ pub enum TxCmd {
 
     /// Send an IBC upgrade plan
     UpgradeChain(upgrade::TxIbcUpgradeChainCmd),
-}
-
-impl Override<Config> for TxCmd {
-    fn override_config(&self, config: Config) -> Result<Config, abscissa_core::FrameworkError> {
-        match self {
-            Self::FtTransfer(cmd) => cmd.override_config(config),
-            _ => Ok(config),
-        }
-    }
 }

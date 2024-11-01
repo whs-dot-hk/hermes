@@ -25,15 +25,14 @@ use self::{
     update::UpdateCmds, upgrade::UpgradeCmds, version::VersionCmd,
 };
 
-use core::time::Duration;
 use std::path::PathBuf;
 
 use abscissa_core::clap::Parser;
-use abscissa_core::{config::Override, Command, Configurable, FrameworkError, Runnable};
+use abscissa_core::{Command, Configurable, Runnable};
 use tracing::{error, info};
 
 use crate::DEFAULT_CONFIG_PATH;
-use ibc_relayer::config::{ChainConfig, Config};
+use ibc_relayer::config::Config;
 
 /// Default configuration file path
 pub fn default_config_file() -> Option<PathBuf> {
@@ -136,54 +135,6 @@ impl Configurable<Config> for CliCmd {
                 error!("for an example, please see https://hermes.informal.systems/config.html#example-configuration-file");
                 None
             }
-        }
-    }
-
-    /// Apply changes to the config after it's been loaded, e.g. overriding
-    /// values in a config file using command-line options.
-    ///
-    /// This can be safely deleted if you don't want to override config
-    /// settings from command-line options.
-    fn process_config(&self, mut config: Config) -> Result<Config, FrameworkError> {
-        // Alter the memo for all chains to include a suffix with Hermes build details
-        let web = "https://hermes.informal.systems";
-        let suffix = format!("{} {} ({})", CliCmd::name(), clap::crate_version!(), web);
-        for ccfg in config.chains.iter_mut() {
-            #[allow(irrefutable_let_patterns)]
-            if let ChainConfig::CosmosSdk(ref mut cosmos_ccfg) = ccfg {
-                if let Some(memo) = &cosmos_ccfg.memo_overwrite {
-                    cosmos_ccfg.memo_prefix = memo.clone();
-                } else {
-                    cosmos_ccfg.memo_prefix.apply_suffix(&suffix);
-                }
-            }
-        }
-
-        // For all commands except for `start` Hermes retries
-        // for a prolonged period of time.
-        if !matches!(self, CliCmd::Start(_)) {
-            for c in config.chains.iter_mut() {
-                #[allow(irrefutable_let_patterns)]
-                if let ChainConfig::CosmosSdk(ref mut cosmos_ccfg) = c {
-                    cosmos_ccfg.rpc_timeout = Duration::from_secs(120);
-                }
-            }
-        }
-
-        match self {
-            CliCmd::Tx(cmd) => cmd.override_config(config),
-            CliCmd::Fee(cmd) => cmd.override_config(config),
-            // CliCmd::Help(cmd) => cmd.override_config(config),
-            // CliCmd::Keys(cmd) => cmd.override_config(config),
-            // CliCmd::Create(cmd) => cmd.override_config(config),
-            // CliCmd::Update(cmd) => cmd.override_config(config),
-            // CliCmd::Upgrade(cmd) => cmd.override_config(config),
-            // CliCmd::Start(cmd) => cmd.override_config(config),
-            // CliCmd::Query(cmd) => cmd.override_config(config),
-            // CliCmd::Listen(cmd) => cmd.override_config(config),
-            // CliCmd::Misbehaviour(cmd) => cmd.override_config(config),
-            // CliCmd::Version(cmd) => cmd.override_config(config),
-            _ => Ok(config),
         }
     }
 }

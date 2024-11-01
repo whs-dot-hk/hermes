@@ -1,6 +1,6 @@
 use core::time::Duration;
 
-use abscissa_core::{clap::Parser, config::Override, FrameworkError, FrameworkErrorKind};
+use abscissa_core::clap::Parser;
 use eyre::eyre;
 
 use ibc_relayer::{
@@ -145,23 +145,6 @@ pub struct FeeTransferCmd {
         help = "Optional memo included in the transfer"
     )]
     memo: Option<String>,
-}
-
-impl Override<Config> for FeeTransferCmd {
-    fn override_config(&self, mut config: Config) -> Result<Config, FrameworkError> {
-        let src_chain_config = config.find_chain_mut(&self.src_chain_id).ok_or_else(|| {
-            FrameworkErrorKind::ComponentError.context(format!(
-                "missing configuration for source chain '{}'",
-                self.src_chain_id
-            ))
-        })?;
-
-        if let Some(ref key_name) = self.key_name {
-            src_chain_config.set_key_name(key_name.to_string());
-        }
-
-        Ok(config)
-    }
 }
 
 impl FeeTransferCmd {

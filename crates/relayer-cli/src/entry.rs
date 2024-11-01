@@ -94,8 +94,7 @@ impl Configurable<Config> for EntryPoint {
     /// modifying it or returning an error if options are incompatible
     fn process_config(&self, config: Config) -> Result<Config, FrameworkError> {
         match &self.command {
-            Some(cmd) => cmd.process_config(config),
-            None => Ok(config),
+            _ => Ok(config),
         }
     }
 }
